@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comment Feed</title>
+    <style>
+        /* Style for the comment text section */
+        .comment-text {
+            background-color: #f0f0f0;  /* Light gray background */
+            padding: 10px;               /* Padding inside the rectangle */
+            border-radius: 15px;         /* Rounded corners */
+            max-width: 600px;            /* Limit the width of the comment */
+            margin: 10px 0;              /* Add space between comments */
+            font-family: Arial, sans-serif; /* Optional: better font */
+        }
+
+        /* Style for the "Post a Comment" button */
+        .post-btn {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        /* Style for the comment list */
+        .comment-list {
+            list-style-type: none;      /* Remove bullet points */
+            padding: 0;
+        }
+
+        /* Style for each comment item */
+        .comment-item {
+            margin-bottom: 20px;        /* Space between each comment */
+        }
+
+        /* Style for the timestamp */
+        .timestamp {
+            font-size: 0.9em;
+            color: #888;
+        }
+
+        /* Style for pagination links */
+        .pagination {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .pagination a {
+            padding: 5px 10px;
+            margin: 0 5px;
+            text-decoration: none;
+            color: #007bff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .pagination a.active {
+            background-color: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+
+        .pagination a:hover {
+            background-color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Comment Feed</h1>
+
+    <!-- Button to navigate to the comment form page -->
+    <a href="/comment/" class="post-btn">Post a Comment</a>
+
+    <h2>All Comments</h2>
+    <ul class="comment-list">
+        {% for comment in comments %}
+            <li class="comment-item">
+                <strong>{{ comment.comment_type | capitalize }}:</strong>
+                <div class="comment-text">{{ comment.comment_text }}</div>
+                <div class="timestamp">Posted on: {{ comment.timestamp.strftime('%d %a | %Y | %H:%M') }}</div>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <!-- Pagination Section -->
+    <div class="pagination">
+        {% if pages is defined and pages.total_pages > 1 %}
+            {% for page_num in range(1, pages.total_pages + 1) %}
+                <a href="/?page={{ page_num }}&limit={{ limit }}" class="{% if page_num == pages.current_page %}active{% endif %}">{{ page_num }}</a>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+</body>
+</html>
