@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Books - List</title>
+</head>
+<body>
+    <h1>Books List</h1>
+
+    <a href="/books/new">Create New Book</a>
+    <br><br>
+
+    <ul>
+    {% for book in books %}
+        <li>
+            <a href="/books/{{ book.id }}">{{ book.title }}</a>
+            by {{ book.author }} ({{ book.year }})
+        </li>
+    {% endfor %}
+    </ul>
+
+    <hr>
+    <div>
+      {% if prev_page %}
+        <a href="/books?page={{ prev_page }}">Previous Page</a>
+      {% endif %}
+      
+      Page {{ current_page }} of {{ last_page }}
+      
+      {% if next_page %}
+        <a href="/books?page={{ next_page }}">Next Page</a>
+      {% endif %}
+    </div>
+</body>
+</html>
+
