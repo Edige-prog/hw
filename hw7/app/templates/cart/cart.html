@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flower Shop - Your Cart</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f7f9fc;
+            color: #333;
+        }
+        header {
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        nav {
+            background-color: #388E3C;
+            padding: 0.5rem;
+            text-align: center;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 10px;
+            padding: 5px 10px;
+            border-radius: 3px;
+        }
+        nav a:hover {
+            background-color: #2E7D32;
+        }
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #388E3C;
+        }
+        .cart-empty {
+            text-align: center;
+            padding: 3rem 0;
+            color: #666;
+        }
+        .cart-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
+        }
+        .cart-table th {
+            background-color: #f0f0f0;
+            padding: 0.8rem;
+            text-align: left;
+            border-bottom: 2px solid #ddd;
+        }
+        .cart-table td {
+            padding: 0.8rem;
+            border-bottom: 1px solid #ddd;
+        }
+        .total-row {
+            font-weight: bold;
+            border-top: 2px solid #ddd;
+        }
+        .total-row td {
+            padding: 1rem 0.8rem;
+        }
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 2rem;
+        }
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            text-decoration: none;
+            cursor: pointer;
+            text-align: center;
+            display: inline-block;
+            border: none;
+            font-size: 1rem;
+        }
+        .btn-primary {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .btn-secondary {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .login-message {
+            background-color: #FFF9C4;
+            border: 1px solid #FBC02D;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Flower Marketplace</h1>
+    </header>
+    <nav>
+        {% if user %}
+        <a href="/auth/profile">Profile</a>
+        {% else %}
+        <a href="/auth/login">Login</a>
+        <a href="/auth/signup">Sign Up</a>
+        {% endif %}
+        <a href="/flowers">Flowers</a>
+        <a href="/cart">Cart</a>
+        {% if user %}
+        <a href="/cart/purchased">Purchased</a>
+        {% endif %}
+    </nav>
+    <div class="container">
+        <h1>Your Shopping Cart</h1>
+
+        <!-- Login reminder - only shown when user is not logged in -->
+        {% if not user %}
+        <div class="login-message">
+            Please <a href="/auth/login">login</a> to complete your purchase.
+        </div>
+        {% endif %}
+        <!-- If cart is empty -->
+        {% if not cart %}
+        <div class="cart-empty">
+            Your cart is empty. <a href="/flowers">Browse flowers</a> to add items.
+        </div>
+        {% else %}
+        <!-- If cart has items -->
+        <table class="cart-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Flower</th>
+                    <th>Price</th>
+                    <th>Quantity</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Example items - would be dynamically populated -->
+                {% for item in cart %}
+                    <tr>
+                        <td>1</td>
+                        <td>{{item.flower.name}}</td>
+                        <td>{{item.flower.price}}</td>
+                        <td>
+                            <form onsubmit="deleteFromCart(event, '{{ item.flower.id }}')">
+                                <input type="hidden" name="flower_id" value="{{ item.flower.id }}">
+                                <button type="submit"> - </button>
+                            </form>
+                            {{item.quantity}} <form action="/cart" method="POST">
+                                <input type="hidden" name="flower_id" value="{{ item.flower.id }}">
+                                <button type="submit"> + </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                <tr class="total-row">
+                    <td colspan="2">Total</td>
+                    <td>{{totalsum}}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="actions">
+            <a href="/flowers" class="btn btn-secondary">Continue Shopping</a>
+            <form action="/cart/purchased" method="POST">
+                <button type="submit" class="btn btn-primary">Complete Purchase</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+    async function deleteFromCart(event, flowerId) {
+        event.preventDefault();
+        try {
+            const response = await fetch(`/cart?flower_id=${flowerId}`, {
+                method: 'DELETE',
+            });
+            if (response.ok) {
+                // Reload the page to show updated cart
+                window.location.reload();
+            } else {
+                console.error('Failed to delete item from cart');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+    </script>
+</body>
+</html>
