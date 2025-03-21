@@ -11,8 +11,11 @@ class News(models.Model):
         return self.title
 
     def get_absolute_url(self):
-        # После создания будет перенаправление на страницу детального просмотра новости.
         return reverse('news:detail', kwargs={'pk': self.pk})
+
+    def has_comments(self):
+        """Возвращает True, если у новости есть комментарии."""
+        return self.comments.exists()
 
 
 class Comment(models.Model):
