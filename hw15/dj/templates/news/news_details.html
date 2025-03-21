@@ -1,0 +1,10 @@
+<!-- templates/news/news_detail.html -->
+{% extends "base.html" %}
+{% block title %}{{ news_item.title }}{% endblock %}
+{% block content %}
+  <h1>{{ news_item.title }}</h1>
+  <p>{{ news_item.content }}</p>
+  <p><small>Опубликовано: {{ news_item.created_at }}</small></p>
+
+  <!-- Здесь могут располагаться комментарии и форма для их добавления -->
+{% endblock %}
