@@ -1,61 +1,89 @@
-from app.database.db import get_connection
+from sqlalchemy.orm import Session
 from app.schemas.users import UserCreate, UserInfo, UserUpdate
 from pydantic import EmailStr
 from fastapi import HTTPException
+from app.database.models import User
 
 
 class UserRepository:
     @classmethod
-    def get_user_by_email(cls, email:EmailStr):
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT id, email, full_name, password_hash, photo_url FROM users WHERE email=%s", (email,))
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        if row:
-            return UserInfo(id=row[0], email=row[1], fullname=row[2], password_hashed=row[3], photo_url=row[4])
+    def get_user_by_email(cls, email: EmailStr, db: Session):
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            return UserInfo(
+                id=user.id,
+                email=user.email,
+                fullname=user.full_name,
+                password_hashed=user.password_hash,
+                photo_url=user.photo_url
+            )
+        return None
 
     @classmethod
-    def get_user_by_id(cls, user_id):
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT id, email, full_name, password_hash, photo_url FROM users WHERE id=%s", (user_id,))
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        if row:
-            return UserInfo(id=row[0], email=row[1], fullname=row[2], password_hashed=row[3], photo_url=row[4])
-
+    def get_user_by_id(cls, user_id: int, db: Session):
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            return UserInfo(
+                id=user.id,
+                email=user.email,
+                fullname=user.full_name,
+                password_hashed=user.password_hash,
+                photo_url=user.photo_url
+            )
+        return None
 
     @classmethod
-    def create_user(cls, user_input:UserCreate):
-        conn = get_connection()
-        cur = conn.cursor()
-        existing_user = cls.get_user_by_email(user_input.email)
-
+    def create_user(cls, user_input: UserCreate, db: Session):
+        existing_user = cls.get_user_by_email(user_input.email, db)
         if existing_user:
             raise HTTPException(
-                status_code=400, detail="User with this email already exists"
+                status_code=400,
+                detail="User with this email already exists"
             )
 
-        cur.execute("INSERT INTO users (email, full_name, password_hash) VALUES (%s, %s, %s)",
-                    (user_input.email, user_input.fullname, user_input.password))
-        conn.commit()
-        cur.close()
-        conn.close()
-        new_user = cls.get_user_by_email(user_input.email)
-        return new_user
+        new_user = User(
+            email=user_input.email,
+            full_name=user_input.fullname,
+            password_hash=user_input.password,
+            photo_url=user_input.photo_url
+        )
+        
+        try:
+            db.add(new_user)
+            db.commit()
+            db.refresh(new_user)
+            return cls.get_user_by_email(user_input.email, db)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create user: {str(e)}"
+            )
 
-    # @classmethod
-    # def update_user(cls, user_id:int, user_input:UserUpdate):
-    #     conn = get_connection()
-    #     cur = conn.cursor()
-    #     existing_user = cls.get_user_by_id(user_id)
-    #
-    #     if not existing_user:
-    #         raise HTTPException(
-    #             status_code=400, detail="User does not exist"
-    #         )
-    #
-    #     cur.execute("")
+    @classmethod
+    def update_user(cls, user_id: int, user_input: UserUpdate, db: Session):
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User does not exist"
+            )
+
+        update_data = user_input.dict(exclude_unset=True)
+        if "fullname" in update_data:
+            update_data["full_name"] = update_data.pop("fullname")
+        if "password" in update_data:
+            update_data["password_hash"] = update_data.pop("password")
+
+        try:
+            for key, value in update_data.items():
+                setattr(user, key, value)
+            db.commit()
+            db.refresh(user)
+            return cls.get_user_by_id(user_id, db)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update user: {str(e)}"
+            )

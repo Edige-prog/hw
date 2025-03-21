@@ -8,15 +8,15 @@ from ..schemas.flowers import FlowerCreate, FlowerInfo
 import uuid
 from fastapi.responses import RedirectResponse, JSONResponse
 from ..utils.security import decode_jwt_token, oauth2_scheme
-from ..database.db import get_connection
+from ..database.db import get_db
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
 
-
 @router.get("/")
-def get_cart_items(request: Request):
-    cart = CartRepository.get_cart(request)
+def get_cart_items(request: Request, db: Session = Depends(get_db)):
+    cart = CartRepository.get_cart(request, db)
     if not cart:
         raise HTTPException(status_code=404, detail="Cart is empty")
     return cart
@@ -24,10 +24,10 @@ def get_cart_items(request: Request):
 
 
 @router.post("/")
-def post_cart_items(request: Request, flower_id: int = Form(...)):
-    flower = FlowersRepository.get_flower_by_id(flower_id)
+def post_cart_items(request: Request, flower_id: int = Form(...), db: Session = Depends(get_db)):
+    flower = FlowersRepository.get_flower_by_id(flower_id, db)
 
-    cart = CartRepository.get_cart(request)
+    cart = CartRepository.get_cart(request, db)
     cookie_val = ""
     new = True
     if cart:
@@ -47,10 +47,13 @@ def post_cart_items(request: Request, flower_id: int = Form(...)):
 
 
 @router.delete("/")
-def delete_cart_item(request: Request, flower_id: int = Form(...)):
-    flower = FlowersRepository.get_flower_by_id(flower_id)
+def delete_cart_item(request: Request, flower_id: int = Form(...), db: Session = Depends(get_db)):
+    flower = FlowersRepository.get_flower_by_id(flower_id, db)
 
-    cart = get_cart_items(request)
+    cart = CartRepository.get_cart(request, db)
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart is empty")
+
     cookie_val = ""
     new = True
 
@@ -73,17 +76,21 @@ def delete_cart_item(request: Request, flower_id: int = Form(...)):
 @router.get("/purchase")
 def get_purchase(
         token: str = Depends(oauth2_scheme),
+        db: Session = Depends(get_db),
 ):
     uid = decode_jwt_token(token)
-    return CartRepository.get_purchases(uid)
+    return CartRepository.get_purchases(uid, db)
 
 
 @router.post("/purchase")
 def post_purchase(
-        request: Request,  # Add request parameter
+        request: Request,
         token: str = Depends(oauth2_scheme),
+        db: Session = Depends(get_db),
 ):
-    cart = get_cart_items(request)
+    cart = CartRepository.get_cart(request, db)
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart is empty")
 
     # Check quantities before making any changes
     for row in cart:
@@ -94,38 +101,17 @@ def post_purchase(
             )
 
     user_id = decode_jwt_token(token)
-    conn = get_connection()
-    cur = conn.cursor()
 
-    try:
-        # Start transaction
-        cur.execute("BEGIN")
+    # Create purchase
+    new_purchase_id = CartRepository.add_purchase(user_id, db)
 
-        # Create purchase
-        new_purchase_id = CartRepository.add_purchase(user_id)
+    # Add items and update flower quantities
+    for row in cart:
+        CartRepository.add_purchase_item(new_purchase_id, row['flower'].id, row['quantity'], db)
+        FlowersRepository.buy(row['flower'].id, row['quantity'], db)
 
-        # Add items and update flower quantities
-        for row in cart:
-            CartRepository.add_purchase_item(new_purchase_id, row['flower'].id, row['quantity'])
+    # Clear the cart by setting an expired cookie
+    response = JSONResponse(content={"message": "Purchase successful", "purchase_id": new_purchase_id})
+    response.delete_cookie(key="cart")
+    return response
 
-            # Update flower quantity
-            cur.execute(
-                "UPDATE flowers SET quantity = quantity - %s WHERE id = %s",
-                (row['quantity'], row['flower'].id)
-            )
-
-        # Commit transaction
-        cur.execute("COMMIT")
-
-        # Clear the cart by setting an expired cookie
-        response = JSONResponse(content={"message": "Purchase successful", "purchase_id": new_purchase_id})
-        response.delete_cookie(key="cart")
-        return response
-
-    except Exception as e:
-        # Rollback in case of error
-        cur.execute("ROLLBACK")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        cur.close()
-        conn.close()

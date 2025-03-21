@@ -1,72 +1,65 @@
 from fileinput import close
+from typing import List
+
 from fastapi import HTTPException, Request
-from ..database.db import get_connection
 from ..repo.flowers import FlowersRepository
 from ..schemas.cart import PurchaseItemInfo
-
+from sqlalchemy.orm import Session
+from ..database.models import Purchase, PurchaseItem
 from fastapi import Depends
+from sqlalchemy import select
 
 from ..schemas.flowers import FlowerInfo
 
 
 class CartRepository:
     @classmethod
-    def add_purchase(cls, uid):
-        conn = get_connection()
-        cur = conn.cursor()
+    def add_purchase(cls, uid: int, db: Session) -> int:
         try:
-            # Insert and return the newly created ID
-            cur.execute("INSERT INTO purchase (user_id) VALUES (%s) RETURNING id", (uid,))
-            purchase_id = cur.fetchone()[0]  # Fetch the new purchase ID
-            conn.commit()
-        finally:
-            cur.close()
-            conn.close()
-
-        return purchase_id  # Return the newly created purchase ID
-
-
-    @classmethod
-    def add_purchase_item(cls, pid, fid, quantity):
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute("INSERT INTO purchase_item (purchase_id, flower_id, quantity) VALUES (%s, %s, %s)", (pid, fid, quantity))
-        conn.commit()
-        cur.close()
-        conn.close()
+            new_purchase = Purchase(user_id=uid)
+            db.add(new_purchase)
+            db.commit()
+            db.refresh(new_purchase)  # Load the auto-generated 'id'
+            return new_purchase.id
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to create purchase: {str(e)}")
 
 
     @classmethod
-    def get_purchases(cls, uid):
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT id, user_id FROM purchase WHERE user_id=%s",
-            (uid,))
-        purchases = cur.fetchall()
+    def add_purchase_item(cls, pid, fid, quantity, db: Session) -> int:
+        try:
+            new_purchase_item = PurchaseItem(purchase_id=pid, flower_id=fid, quantity=quantity)
+            db.add(new_purchase_item)
+            db.commit()
+            db.refresh(new_purchase_item)  # Load the auto-generated 'id'
+            return new_purchase_item.id
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to create purchase_item: {str(e)}")
+
+
+    @classmethod
+    def get_purchases(cls, uid, db: Session) -> List:
+        purchases = db.query(Purchase).filter(Purchase.user_id == uid).all()
+
         if not purchases:  # Check if the list is empty
             raise HTTPException(status_code=404, detail="Purchases not found")
 
         result = []
         for purchase in purchases:
-            cur.execute(
-                "SELECT id, flower_id, quantity FROM purchase_item WHERE purchase_id=%s",
-                (purchase[0],)  # Use purchase[0] instead of undefined row[0]
-            )
-            purchase_items = cur.fetchall()
+            purchase_items = purchase.items
             items = []
             for purchase_item in purchase_items:
-                flower = FlowersRepository.get_flower_by_id(purchase_item[1])
-                items.append(PurchaseItemInfo(id=purchase_item[0], flower = flower, quantity=purchase_item[2]))
-            result.append({"purchase_id": purchase[0], "purchase_items": items})
+                flower = FlowersRepository.get_flower_by_id(purchase_item.flower_id, db)
+                items.append(PurchaseItemInfo(id=purchase_item.id, flower = flower, quantity=purchase_item.quantity))
+            result.append({"purchase_id": purchase.id, "purchase_items": items})
 
-        cur.close()
-        conn.close()
         return result
 
 
     @classmethod
-    def get_cart(cls, request:Request):
+    def get_cart(cls, request:Request, db: Session) -> List:
         val = request.cookies.get("cart")
         if not val:
             return None
@@ -76,7 +69,7 @@ class CartRepository:
         for row in rows:
             if row != '':
                 items = row.split(',')
-                flower = FlowersRepository.get_flower_by_id(items[0])
+                flower = FlowersRepository.get_flower_by_id(items[0], db)
                 quantity = int(items[1])
                 flowers.append({'flower':flower, 'quantity':quantity})
 

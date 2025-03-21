@@ -1,74 +1,92 @@
 from xmlrpc.client import ResponseError
-
-from ..database.db import get_connection
 from ..schemas.flowers import FlowerCreate, FlowerInfo
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from ..database.models import Flower
+from sqlalchemy import update
 
 
 class FlowersRepository:
     @classmethod
-    def create_flower(cls, flower:FlowerCreate):
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO flowers (name, quantity, price)"
-            "VALUES (%s, %s, %s)", (flower.name, flower.quantity, flower.price)
+    def create_flower(cls, flower: FlowerCreate, db: Session):
+        try:
+            new_flower = Flower(
+                name=flower.name,
+                quantity=flower.quantity,
+                price=flower.price
+            )
+            db.add(new_flower)
+            db.commit()
+            db.refresh(new_flower)
+            return cls.get_flower_by_id(new_flower.id, db)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create flower: {str(e)}"
+            )
+
+    @classmethod
+    def get_all_flowers(cls, db: Session):
+        flowers = db.query(Flower).order_by(Flower.id.desc()).all()
+        if not flowers:
+            raise HTTPException(status_code=404, detail="No flowers found")
+        return [FlowerInfo(
+            id=flower.id,
+            name=flower.name,
+            quantity=flower.quantity,
+            price=flower.price
+        ) for flower in flowers]
+
+    @classmethod
+    def get_flower_by_id(cls, flower_id: int, db: Session):
+        flower = db.query(Flower).filter(Flower.id == flower_id).first()
+        if not flower:
+            raise HTTPException(status_code=404, detail="Flower not found")
+        return FlowerInfo(
+            id=flower.id,
+            name=flower.name,
+            quantity=flower.quantity,
+            price=flower.price
         )
-        conn.commit()
-        cur.close()
-        conn.close()
-
 
     @classmethod
-    def get_all_flowers(cls):
-        conn = get_connection()
-        cur = conn.cursor()
+    def delete_flower_by_id(cls, flower_id: int, db: Session):
+        flower = db.query(Flower).filter(Flower.id == flower_id).first()
+        if not flower:
+            raise HTTPException(status_code=404, detail="Flower not found")
+
         try:
-            cur.execute("SELECT id, name, quantity, price FROM flowers ORDER BY id DESC")
-            rows = cur.fetchall()
-            if rows is None:
-                raise HTTPException(status_code=404, detail="Flower not found")
-        finally:
-            cur.close()
-            conn.close()
-        flowers = []
-        for r in rows:
-            flowers.append(FlowerInfo(id=r[0], name=r[1], quantity=r[2], price=r[3]))
-        return flowers
+            db.delete(flower)
+            db.commit()
+            return {"message": "Flower deleted successfully"}
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete flower: {str(e)}"
+            )
 
     @classmethod
-    def get_flower_by_id(cls, fid):
-        conn = get_connection()
-        cur = conn.cursor()
+    def buy(cls, flower_id: int, quantity: int, db: Session):
+        flower = db.query(Flower).filter(Flower.id == flower_id).first()
+        if not flower:
+            raise HTTPException(status_code=404, detail="Flower not found")
+        
+        if flower.quantity < quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not enough flowers available. Only {flower.quantity} left."
+            )
+
         try:
-            cur.execute("SELECT id, name, quantity, price FROM flowers WHERE id=%s", (fid,))
-            r = cur.fetchone()
-            if r is None:
-                raise HTTPException(status_code=404, detail="Flower not found")
-        finally:
-            cur.close()
-            conn.close()
-        if r:
-            flower = FlowerInfo(id=r[0], name=r[1], quantity=r[2], price=r[3])
-            return flower
+            flower.quantity -= quantity
+            db.commit()
+            db.refresh(flower)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update flower quantity: {str(e)}"
+            )
 
-
-    @classmethod
-    def delete_flower_by_id(cls, fid):
-        conn = get_connection()
-        cur = conn.cursor()
-        try:
-            # Check if the flower exists
-            cur.execute("SELECT id FROM flowers WHERE id=%s", (fid,))
-            r = cur.fetchone()
-            if r is None:
-                raise HTTPException(status_code=404, detail="Flower not found")
-
-            # If found, proceed with deletion
-            cur.execute("DELETE FROM flowers WHERE id=%s", (fid,))
-            conn.commit()
-        finally:
-            cur.close()
-            conn.close()
-
-        return {"message": "Flower deleted successfully"}
