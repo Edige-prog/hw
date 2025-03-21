@@ -1,0 +1,26 @@
+<!-- news/templates/news/news_detail.html -->
+{% extends "base.html" %}
+{% block content %}
+  <h1>{{ news_item.title }}</h1>
+  <p>{{ news_item.content }}</p>
+  <p><small>Опубликовано: {{ news_item.created_at }}</small></p>
+
+  <hr>
+  <h3>Комментарии</h3>
+  {% for comment in comments %}
+    <div>
+      <p>{{ comment.content }}</p>
+      <p><small>{{ comment.created_at }}</small></p>
+    </div>
+    <hr>
+  {% empty %}
+    <p>Нет комментариев.</p>
+  {% endfor %}
+
+  <h3>Добавить комментарий</h3>
+  <form method="post">
+    {% csrf_token %}
+    {{ comment_form.as_p }}
+    <button type="submit">Отправить комментарий</button>
+  </form>
+{% endblock %}
