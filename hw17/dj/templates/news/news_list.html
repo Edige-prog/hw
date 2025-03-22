@@ -1,0 +1,16 @@
+<!-- news/templates/news/news_list.html -->
+{% extends "base.html" %}
+{% block content %}
+  <h1>Список новостей</h1>
+  {% for news in news_list %}
+    <div>
+      <h2><a href="{{ news.get_absolute_url }}">{{ news.title }}</a></h2>
+      <p>{{ news.content|truncatewords:30 }}</p>
+      <p><small>Опубликовано: {{ news.created_at }}</small></p>
+    </div>
+    <hr>
+  {% empty %}
+    <p>Нет новостей</p>
+  {% endfor %}
+  <a href="{% url 'news:create' %}">Добавить новость</a>
+{% endblock %}
