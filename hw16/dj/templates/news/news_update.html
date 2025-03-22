@@ -1,0 +1,11 @@
+<!-- templates/news/news_update.html -->
+{% extends "base.html" %}
+{% block title %}Редактировать новость{% endblock %}
+{% block content %}
+  <h1>Редактирование новости</h1>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Сохранить изменения</button>
+  </form>
+{% endblock %}

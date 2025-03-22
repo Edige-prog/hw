@@ -1,0 +1,40 @@
+<!-- templates/news/news_detail.html -->
+{% extends "base.html" %}
+{% block title %}{{ news_item.title }}{% endblock %}
+{% block content %}
+  <h1>{{ news_item.title }}</h1>
+  <p>{{ news_item.content }}</p>
+  <p><small>Опубликовано: {{ news_item.created_at }}</small></p>
+
+  <!-- Секция комментариев -->
+  <hr>
+  <h3>Комментарии</h3>
+  {% for comment in comments %}
+    <div>
+      <p>{{ comment.content }}</p>
+      <p><small>Автор: {{ comment.author.username }} | {{ comment.created_at }}</small></p>
+      <!-- Кнопка удаления комментария: показывается если пользователь является автором или имеет соответствующее право -->
+      {% if comment.author == user or user.has_perm('news.delete_comment') %}
+        <form method="post" action="{% url 'news:comment_delete' comment.pk %}" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit">Удалить</button>
+        </form>
+      {% endif %}
+    </div>
+    <hr>
+  {% empty %}
+    <p>Нет комментариев.</p>
+  {% endfor %}
+
+  <!-- Форма добавления комментария -->
+  <h3>Добавить комментарий</h3>
+  {% if user.is_authenticated %}
+    <form method="post" action="">
+      {% csrf_token %}
+      {{ comment_form.as_p }}
+      <button type="submit">Отправить комментарий</button>
+    </form>
+  {% else %}
+    <p>Доступно для авторизованных</p>
+  {% endif %}
+{% endblock %}
